@@ -30,9 +30,9 @@ std::vector<double> normalize_sequence(const std::vector<int>& sequence, int m) 
 
 // Функции для проверки тестов
 bool is_uniform(const std::vector<double>& normalized_sequence) {
-    std::vector<int> counts(10, 0); // 12 интервалов
+    std::vector<int> counts(12, 0); // 12 интервалов
     for (double num : normalized_sequence) {
-        counts[static_cast<int>(num * 10)]++;
+        counts[static_cast<int>(num * 12)]++;
     }
     return std::all_of(counts.begin(), counts.end(), [&](int count) { return count == counts[0]; });
 }
@@ -43,7 +43,7 @@ bool is_random(const std::vector<double>& normalized_sequence) {
         if (normalized_sequence[i] < normalized_sequence[i + 1]) increasing++;
         if (normalized_sequence[i] > normalized_sequence[i + 1]) decreasing++;
     }
-    return std::abs(increasing - decreasing) <= 5;
+    return std::abs(increasing - decreasing) <= 5; // 5 - это примерное количество переходов, чтобы увеличить точность, нужно увеличить количество элементов в последовательности
 }
 
 double calculate_correlation(const std::vector<double>& normalized_sequence) {
@@ -71,7 +71,7 @@ void find_parameters(int lambda_start, int lambda_end, int mu_start, int mu_end,
         for (int lambda = lambda_start; lambda <= lambda_end && !found.load(); ++lambda) {
             for (int mu = mu_start; mu <= mu_end && !found.load(); ++mu) {
                 for (int m = m_start; m <= m_end && !found.load(); ++m) {
-                    auto sequence = generate_sequence(lambda, mu, m, x0);
+                    auto sequence = generate_sequence(lambda, mu, m, x0, 900);
                     auto normalized_sequence = normalize_sequence(sequence, m);
                     if (is_uniform(normalized_sequence) && is_random(normalized_sequence) && is_independent(normalized_sequence)) {
                         mtx.lock();
@@ -87,7 +87,7 @@ void find_parameters(int lambda_start, int lambda_end, int mu_start, int mu_end,
 }
 
 int main() {
-    const int num_threads = 4; // Количество потоков
+    const int num_threads = 5; // Количество потоков
     std::vector<std::thread> threads;
     std::atomic<bool> found(false);
 
@@ -98,7 +98,7 @@ int main() {
     for (int i = 0; i < num_threads; ++i) {
         int lambda_start = 1 + i * lambda_per_thread;
         int lambda_end = (i + 1) * lambda_per_thread;
-        threads.emplace_back(find_parameters, lambda_start, lambda_end, 10, 30, 10, 30, 1, 20, std::ref(found));
+        threads.emplace_back(find_parameters, lambda_start, lambda_end, 5, 50, 5, 50, 1, 5, std::ref(found));
     }
 
     for (auto& t : threads) {
