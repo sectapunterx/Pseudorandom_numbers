@@ -1,8 +1,13 @@
 #include <iostream>
 #include <vector>
+#include <thread>
+#include <mutex>
+#include <atomic>
 #include <numeric>
 #include <cmath>
 #include <algorithm>
+
+std::mutex mtx; // Мьютекс для синхронизации вывода
 
 // Функция для генерации последовательности
 std::vector<int> generate_sequence(int lambda, int mu, int m, int x0, int length = 600) {
@@ -25,7 +30,7 @@ std::vector<double> normalize_sequence(const std::vector<int>& sequence, int m) 
 
 // Функции для проверки тестов
 bool is_uniform(const std::vector<double>& normalized_sequence) {
-    std::vector<int> counts(12, 0); // 12 интервалов
+    std::vector<int> counts(10, 0); // 12 интервалов
     for (double num : normalized_sequence) {
         counts[static_cast<int>(num * 10)]++;
     }
@@ -61,33 +66,48 @@ bool is_independent(const std::vector<double>& normalized_sequence) {
     double correlation = calculate_correlation(normalized_sequence);
     return std::abs(correlation) < 0.05;
 }
-
-int main() {
-    //int x0 = 1;
-
-    for(int x0 = 2; x0 <= 100; ++x0) {
-        for (int lambda = 1; lambda <= 5; ++lambda) { // Примерные диапазоны
-            for (int mu = 100; mu <= 200; ++mu) {
-                for (int m = 100; m <= 300; ++m) {
+void find_parameters(int lambda_start, int lambda_end, int mu_start, int mu_end, int m_start, int m_end, int x0_start, int x0_end, std::atomic<bool>& found) {
+    for (int x0 = x0_start; x0 <= x0_end && !found.load(); ++x0) {
+        for (int lambda = lambda_start; lambda <= lambda_end && !found.load(); ++lambda) {
+            for (int mu = mu_start; mu <= mu_end && !found.load(); ++mu) {
+                for (int m = m_start; m <= m_end && !found.load(); ++m) {
                     auto sequence = generate_sequence(lambda, mu, m, x0);
                     auto normalized_sequence = normalize_sequence(sequence, m);
-
-                    if (is_uniform(normalized_sequence) && is_random(normalized_sequence) &&
-                        is_independent(normalized_sequence)) {
-                        std::cout << "Found valid parameters: " << std::endl;
-                        std::cout << "X0: " << x0 << ", Lambda: " << lambda << ", Mu: " << mu << ", M: " << m << std::endl;
-                        std::cout << "Uniform: " << is_uniform(normalized_sequence)
-                                  << std::endl; // Uniform - равномерный
-                        std::cout << "Random: " << is_random(normalized_sequence) << std::endl; // Random - случайный
-                        std::cout << "Independent: " << is_independent(normalized_sequence)
-                                  << std::endl; // Independent - независимый
-                        return 0;
+                    if (is_uniform(normalized_sequence) && is_random(normalized_sequence) && is_independent(normalized_sequence)) {
+                        mtx.lock();
+                        std::cout << "Found valid parameters: Lambda: " << lambda << ", Mu: " << mu << ", M: " << m << ", X0: " << x0 << std::endl;
+                        mtx.unlock();
+                        found.store(true);
+                        return;
                     }
                 }
             }
         }
     }
+}
 
-    std::cout << "No valid parameters found." << std::endl;
+int main() {
+    const int num_threads = 4; // Количество потоков
+    std::vector<std::thread> threads;
+    std::atomic<bool> found(false);
+
+    // Разделение диапазона параметров между потоками
+    int lambda_range = 5; // Примерный диапазон для lambda
+    int lambda_per_thread = lambda_range / num_threads;
+
+    for (int i = 0; i < num_threads; ++i) {
+        int lambda_start = 1 + i * lambda_per_thread;
+        int lambda_end = (i + 1) * lambda_per_thread;
+        threads.emplace_back(find_parameters, lambda_start, lambda_end, 10, 30, 10, 30, 1, 20, std::ref(found));
+    }
+
+    for (auto& t : threads) {
+        t.join();
+    }
+
+    if (!found.load()) {
+        std::cout << "No valid parameters found." << std::endl;
+    }
+
     return 0;
 }
