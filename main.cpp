@@ -6,6 +6,7 @@
 #include <numeric>
 #include <cmath>
 #include <algorithm>
+#include <map>
 
 std::mutex mtx; // Мьютекс для синхронизации вывода
 
@@ -66,6 +67,50 @@ bool is_independent(const std::vector<double>& normalized_sequence) {
     double correlation = calculate_correlation(normalized_sequence);
     return std::abs(correlation) < 0.05;
 }
+
+double calculate_chi_square_for_randomness(const std::vector<int>& sequence) {
+    // Подсчет серий разной длины
+    std::map<int, int> series_count; // Словарь для хранения количества серий каждой длины
+    int current_length = 1;
+    for (size_t i = 1; i < sequence.size(); ++i) {
+        if (sequence[i] == sequence[i - 1]) {
+            current_length++;
+        } else {
+            series_count[current_length]++;
+            current_length = 1;
+        }
+    }
+    series_count[current_length]++; // Добавить последнюю серию
+
+    // Вычисление хи-квадрат статистики
+    double chi_square = 0.0;
+    int total_series = sequence.size() - 1; // Общее количество серий
+    for (const auto& [length, count] : series_count) {
+        double expected_count = 2.0 / (length * (length + 1)) * total_series; // Ожидаемое количество серий данной длины
+        chi_square += std::pow(count - expected_count, 2) / expected_count;
+    }
+
+    return chi_square;
+}
+
+// Функция для проверки равномерности - вычисление хи-квадрат статистики
+double calculate_chi_square_for_uniformity(const std::vector<double>& normalized_sequence, int num_intervals) {
+    std::vector<int> interval_counts(num_intervals, 0); // Счетчики для каждого интервала
+    for (double value : normalized_sequence) {
+        int index = static_cast<int>(value * num_intervals);
+        if (index == num_intervals) index--; // Обработка краевого случая, когда значение равно 1
+        interval_counts[index]++;
+    }
+
+    double expected_count = static_cast<double>(normalized_sequence.size()) / num_intervals; // Ожидаемое количество в каждом интервале
+    double chi_square = 0.0;
+    for (int count : interval_counts) {
+        chi_square += std::pow(count - expected_count, 2) / expected_count;
+    }
+
+    return chi_square;
+}
+
 void find_parameters(int lambda_start, int lambda_end, int mu_start, int mu_end, int m_start, int m_end, int x0_start, int x0_end, std::atomic<bool>& found) {
     for (int x0 = x0_start; x0 <= x0_end && !found.load(); ++x0) {
         for (int lambda = lambda_start; lambda <= lambda_end && !found.load(); ++lambda) {
@@ -87,7 +132,7 @@ void find_parameters(int lambda_start, int lambda_end, int mu_start, int mu_end,
 }
 
 int main() {
-    const int num_threads = 5; // Количество потоков
+    /*const int num_threads = 5; // Количество потоков
     std::vector<std::thread> threads;
     std::atomic<bool> found(false);
 
@@ -107,7 +152,19 @@ int main() {
 
     if (!found.load()) {
         std::cout << "No valid parameters found." << std::endl;
-    }
+    }*/
+    //------------------------------------------------------------------------------------------------------------------
+    // Проверка тестов
+    int lambda = 5, mu = 29, m = 37, x0 = 1;
+    auto sequence = generate_sequence(lambda, mu, m, x0, 900);
+    auto normalized_sequence = normalize_sequence(sequence, m);
+
+    double chi_square_randomness = calculate_chi_square_for_randomness(sequence);
+    double chi_square_uniformity = calculate_chi_square_for_uniformity(normalized_sequence, 12);
+
+    std::cout << "Chi-Square for Randomness: " << chi_square_randomness << std::endl;
+    std::cout << "Chi-Square for Uniformity: " << chi_square_uniformity << std::endl;
+
 
     return 0;
 }
