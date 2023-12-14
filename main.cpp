@@ -132,7 +132,7 @@ void find_parameters(int lambda_start, int lambda_end, int mu_start, int mu_end,
 }
 
 int main() {
-    /*const int num_threads = 5; // Количество потоков
+    const int num_threads = 5; // Количество потоков
     std::vector<std::thread> threads;
     std::atomic<bool> found(false);
 
@@ -152,7 +152,7 @@ int main() {
 
     if (!found.load()) {
         std::cout << "No valid parameters found." << std::endl;
-    }*/
+    }
     //------------------------------------------------------------------------------------------------------------------
     // Проверка тестов
     int lambda = 5, mu = 29, m = 37, x0 = 1;
